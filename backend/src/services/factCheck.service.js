@@ -1,6 +1,9 @@
 import { fetchReadableTextFromUrl } from '../utils/scrape.js';
-import { generateFactCheck, analyzeImageEvidence } from '../utils/openai.js';
+import { generateFactCheck, analyzeImageEvidence, summarizeSourceText } from '../utils/openai.js';
 import { fetchCorroboratingEvidence } from '../utils/corroborate.js';
+import { cacheGet, cacheSet } from '../utils/cache.js';
+import { persistedGet, persistedSet } from '../utils/persistedCache.js';
+import { fetchGoogleFactChecks } from '../utils/factchecktools.js';
 
 export async function factCheck({ text, url }) {
   if (!text && !url) {
@@ -13,15 +16,22 @@ export async function factCheck({ text, url }) {
   let image = '';
   let imageInsight = '';
   let sourceTitle = '';
+  let canonicalUrl = '';
 
   if (url) {
+    // Persistent cache by URL: return exact same result if previously computed
+    const persisted = persistedGet(url);
+    if (persisted) {
+      return persisted;
+    }
     try {
-      const { title, text: extracted, description: metaDesc, image: metaImage } = await fetchReadableTextFromUrl(url);
+      const { title, text: extracted, description: metaDesc, image: metaImage, canonical } = await fetchReadableTextFromUrl(url);
       sourceText = `${title}\n\n${extracted}`.trim();
       citations.push(url);
       description = metaDesc || '';
       image = metaImage || '';
       sourceTitle = title || '';
+      canonicalUrl = canonical || '';
     } catch (err) {
       sourceText = '';
     }
@@ -43,19 +53,40 @@ export async function factCheck({ text, url }) {
     } catch {}
   }
 
+  // Check cache for stability
+  const cacheKey = JSON.stringify({ claimForModel, sourceTextFingerprint: sourceText.slice(0, 1000), image: Boolean(image) });
+  const cached = cacheGet(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   let result = await generateFactCheck({ claimText: claimForModel, sourceText, extraEvidenceText: imageInsight });
 
   const verdictLower = String(result?.verdict || '').toLowerCase();
   if (verdictLower.includes('mixed') || verdictLower.includes('unverifiable')) {
-    const evidence = await fetchCorroboratingEvidence(claimForModel);
-    if (evidence.text) {
-      const rerun = await generateFactCheck({ claimText: claimForModel, sourceText, extraEvidenceText: `${imageInsight}\n\n${evidence.text}` });
+    const [wikiEv, gfcEv] = await Promise.all([
+      fetchCorroboratingEvidence(claimForModel),
+      fetchGoogleFactChecks(claimForModel)
+    ]);
+    const mergedText = [wikiEv.text, gfcEv.text].filter(Boolean).join('\n\n');
+    const mergedCites = Array.from(new Set([...(wikiEv.citations||[]), ...(gfcEv.citations||[])]));
+    if (mergedText) {
+      const rerun = await generateFactCheck({ claimText: claimForModel, sourceText, extraEvidenceText: `${imageInsight}\n\n${mergedText}` });
       result = {
         ...rerun,
-        citations: Array.from(new Set([...(rerun.citations || []), ...evidence.citations]))
+        citations: Array.from(new Set([...(rerun.citations || []), ...mergedCites]))
       };
     }
   }
+
+  // Optional: summarize source for UI
+  let summaryPoints = [];
+  try {
+    if (sourceText && sourceText.length > 300) {
+      const sum = await summarizeSourceText({ sourceText });
+      summaryPoints = Array.isArray(sum.summaryPoints) ? sum.summaryPoints : [];
+    }
+  } catch {}
 
   // Fallback confidence if missing
   const computedConfidence = (() => {
@@ -67,7 +98,10 @@ export async function factCheck({ text, url }) {
     return 55;
   })();
 
-  return { description, image, imageInsight, sourceTitle, ...result, confidence: computedConfidence, citations: Array.from(new Set([...(result.citations || []), ...citations])) };
+  const payload = { description, image, imageInsight, sourceTitle, canonicalUrl, summaryPoints, ...result, confidence: computedConfidence, citations: Array.from(new Set([...(result.citations || []), ...citations])) };
+  cacheSet(cacheKey, payload, 10 * 60 * 1000);
+  if (url) persistedSet(url, payload);
+  return payload;
 }
 
 

@@ -96,4 +96,26 @@ export async function analyzeImageEvidence({ imageUrl, claimText = '' }) {
   return { imageInsight: content || 'No visual cues detected.' };
 }
 
+export async function summarizeSourceText({ sourceText }) {
+  const client = getOpenAIClient();
+  const mockMode = String(process.env.MOCK_MODE || '').toLowerCase() === 'true';
+  if (!client || mockMode) {
+    return { summaryPoints: [] };
+  }
+
+  const system = 'Summarize the provided text into 3-5 bullet points capturing key facts, avoid speculation.';
+  const user = sourceText?.slice(0, 6000) || '';
+  const response = await client.chat.completions.create({
+    model,
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: user }
+    ],
+    temperature: 0,
+  });
+  const content = response.choices?.[0]?.message?.content || '';
+  const points = content.split(/\n+/).map(s => s.replace(/^[-*]\s*/, '').trim()).filter(Boolean).slice(0, 5);
+  return { summaryPoints: points };
+}
+
 

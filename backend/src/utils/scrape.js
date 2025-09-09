@@ -94,6 +94,7 @@ export async function fetchReadableTextFromUrl(url) {
     let metaTitle =
       doc.querySelector('meta[property="og:title"]')?.getAttribute('content') ||
       article?.title || doc.title || '';
+    const canonical = doc.querySelector('link[rel="canonical"]')?.getAttribute('href');
     const metaImage =
       doc.querySelector('meta[property="og:image:secure_url"]')?.getAttribute('content') ||
       doc.querySelector('meta[property="og:image"]')?.getAttribute('content') ||
@@ -122,8 +123,9 @@ export async function fetchReadableTextFromUrl(url) {
       return {
         title: metaTitle,
         text,
-        description: metaDescription,
-        image
+        description: metaDescription || text.split(/\n+/).find(Boolean)?.slice(0, 280) || '',
+        image,
+        canonical: resolveUrl(canonical, doc.baseURI || url) || ''
       };
     }
   } catch (_) {
@@ -151,14 +153,15 @@ export async function fetchReadableTextFromUrl(url) {
         title: ytId ? ((await fetchYouTubeOEmbed(url))?.title || new URL(url).hostname) : new URL(url).hostname,
         text: text2,
         description: firstLine.slice(0, 280),
-        image
+        image,
+        canonical: ''
       };
     }
   } catch (_) {
     // ignore
   }
 
-  return { title: new URL(url).hostname, text: '', description: '', image: '' };
+  return { title: new URL(url).hostname, text: '', description: '', image: '', canonical: '' };
 }
 
 

@@ -21,6 +21,7 @@ function mapApiToUi(apiResult) {
     const imageFromApi = apiResult?.image || '';
     const imageInsight = apiResult?.imageInsight || '';
     const sourceTitle = apiResult?.sourceTitle || '';
+    const summaryPoints = Array.isArray(apiResult?.summaryPoints) ? apiResult.summaryPoints : [];
     const rationale = apiResult?.rationale || 'No rationale provided.';
     const citations = Array.isArray(apiResult?.citations) ? apiResult.citations : [];
 
@@ -59,8 +60,10 @@ function mapApiToUi(apiResult) {
         `Model verdict: ${apiResult?.verdict || 'Unknown'}`,
         `Rationale: ${rationale}`,
         ...(imageInsight ? [`Image analysis: ${imageInsight}`] : []),
+        ...summaryPoints.map(s => `Summary: ${s}`),
         ...citations.map((c, i) => `Citation ${i + 1}: ${c}`)
-    ];
+    ].filter(Boolean);
+    if (!analysis.length) analysis.push('No analysis details available.');
 
     const tips = isReal
         ? [
@@ -384,6 +387,8 @@ function showResults(result) {
         if (!resultImageEl) {
             resultImageEl = document.createElement('img');
             resultImageEl.id = 'result-image';
+            resultImageEl.referrerPolicy = 'no-referrer';
+            resultImageEl.crossOrigin = 'anonymous';
             resultImageEl.className = 'mx-auto mb-6 rounded-lg max-h-72 object-contain border border-accent-blue/20';
             resultTitle.parentNode.insertBefore(resultImageEl, resultTitle.nextSibling);
         }
