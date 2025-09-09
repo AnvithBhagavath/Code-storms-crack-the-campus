@@ -54,6 +54,21 @@ function resolveUrl(possibleUrl, base) {
   }
 }
 
+async function fetchYouTubeOEmbed(pageUrl) {
+  try {
+    const api = `https://www.youtube.com/oembed?url=${encodeURIComponent(pageUrl)}&format=json`;
+    const res = await fetch(api, { headers: { 'User-Agent': 'FactCheckBot/1.0' } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return {
+      title: data?.title || '',
+      thumbnail: data?.thumbnail_url || ''
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchReadableTextFromUrl(url) {
   const commonHeaders = {
     'User-Agent': 'Mozilla/5.0 (compatible; FactCheckBot/1.0; +https://example.org/bot)',
@@ -76,7 +91,7 @@ export async function fetchReadableTextFromUrl(url) {
       doc.querySelector('meta[property="og:description"]')?.getAttribute('content') ||
       doc.querySelector('meta[name="twitter:description"]')?.getAttribute('content') ||
       '';
-    const metaTitle =
+    let metaTitle =
       doc.querySelector('meta[property="og:title"]')?.getAttribute('content') ||
       article?.title || doc.title || '';
     const metaImage =
@@ -92,6 +107,12 @@ export async function fetchReadableTextFromUrl(url) {
     const ytId = extractYouTubeId(url);
     const ytThumb = getYouTubeThumb(ytId);
     let image = resolveUrl(metaImage, doc.baseURI || url) || ytThumb || '';
+    // Improve YouTube metadata via oEmbed when available
+    if (ytId) {
+      const oembed = await fetchYouTubeOEmbed(url);
+      if (oembed?.title) metaTitle = oembed.title;
+      if (oembed?.thumbnail) image = oembed.thumbnail;
+    }
     // If no image is found (common for dynamic Twitter/Instagram pages), fallback to PageSpeed screenshot
     if (!image) {
       image = await fetchPageSpeedScreenshot(url, process.env.GOOGLE_API_KEY);
@@ -120,13 +141,14 @@ export async function fetchReadableTextFromUrl(url) {
       let image = '';
       const ytId = extractYouTubeId(url);
       if (ytId) {
-        image = getYouTubeThumb(ytId);
+        const oembed = await fetchYouTubeOEmbed(url);
+        image = oembed?.thumbnail || getYouTubeThumb(ytId);
       }
       if (!image) {
         image = await fetchPageSpeedScreenshot(url, process.env.GOOGLE_API_KEY);
       }
       return {
-        title: new URL(url).hostname,
+        title: ytId ? ((await fetchYouTubeOEmbed(url))?.title || new URL(url).hostname) : new URL(url).hostname,
         text: text2,
         description: firstLine.slice(0, 280),
         image

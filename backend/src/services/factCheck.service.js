@@ -12,6 +12,7 @@ export async function factCheck({ text, url }) {
   let description = '';
   let image = '';
   let imageInsight = '';
+  let sourceTitle = '';
 
   if (url) {
     try {
@@ -20,6 +21,7 @@ export async function factCheck({ text, url }) {
       citations.push(url);
       description = metaDesc || '';
       image = metaImage || '';
+      sourceTitle = title || '';
     } catch (err) {
       sourceText = '';
     }
@@ -47,7 +49,7 @@ export async function factCheck({ text, url }) {
   if (verdictLower.includes('mixed') || verdictLower.includes('unverifiable')) {
     const evidence = await fetchCorroboratingEvidence(claimForModel);
     if (evidence.text) {
-      const rerun = await generateFactCheck({ claimText: claimForModel, sourceText, extraEvidenceText: evidence.text });
+      const rerun = await generateFactCheck({ claimText: claimForModel, sourceText, extraEvidenceText: `${imageInsight}\n\n${evidence.text}` });
       result = {
         ...rerun,
         citations: Array.from(new Set([...(rerun.citations || []), ...evidence.citations]))
@@ -55,7 +57,17 @@ export async function factCheck({ text, url }) {
     }
   }
 
-  return { description, image, imageInsight, ...result, citations: Array.from(new Set([...(result.citations || []), ...citations])) };
+  // Fallback confidence if missing
+  const computedConfidence = (() => {
+    const v = String(result?.verdict || '').toLowerCase();
+    if (Number.isFinite(result?.confidence)) return result.confidence;
+    if (v.includes('true')) return v.includes('mostly') ? 85 : 95;
+    if (v.includes('false')) return v.includes('mostly') ? 65 : 40;
+    if (v.includes('mixed')) return 60;
+    return 55;
+  })();
+
+  return { description, image, imageInsight, sourceTitle, ...result, confidence: computedConfidence, citations: Array.from(new Set([...(result.citations || []), ...citations])) };
 }
 
 

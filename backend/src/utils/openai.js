@@ -28,11 +28,12 @@ function mockFactCheck({ claimText, sourceText }) {
 
 export async function generateFactCheck({ claimText, sourceText, extraEvidenceText = '' }) {
   const system = `You are a rigorous, neutral fact-checking assistant.
-Given a user claim and extracted source text from reliable web pages, determine:
-- Verdict: True / Mostly True / Mixed / Mostly False / False / Unverifiable
-- Rationale: concise, cite specific evidence
-- Citations: list the most relevant sources (with titles/urls if provided)
-Return strict JSON with keys: verdict, rationale, citations (array of strings).`;
+Given a user claim and evidence, produce:
+- verdict: one of [True, Mostly True, Mixed, Mostly False, False, Unverifiable]
+- rationale: concise, cite specific evidence
+- citations: array of the most relevant sources (titles/urls if provided)
+- confidence: integer 0-100 reflecting your certainty in the verdict
+Return STRICT JSON with keys: verdict, rationale, citations, confidence.`;
 
   const user = `Claim:\n${claimText}\n\nSource text:\n${sourceText?.slice(0, 9000) || 'N/A'}\n\nExtra evidence:\n${extraEvidenceText?.slice(0, 3000) || 'N/A'}`;
 
@@ -48,15 +49,19 @@ Return strict JSON with keys: verdict, rationale, citations (array of strings).`
         { role: 'system', content: system },
         { role: 'user', content: user },
       ],
-      temperature: 0.1,
+      temperature: 0,
+      top_p: 1,
       response_format: { type: 'json_object' }
     });
 
     const content = response.choices?.[0]?.message?.content || '{}';
     try {
-      return JSON.parse(content);
+      const parsed = JSON.parse(content);
+      const raw = Number(parsed?.confidence);
+      const confidence = Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(raw))) : undefined;
+      return { verdict: parsed?.verdict, rationale: parsed?.rationale, citations: parsed?.citations || [], confidence };
     } catch {
-      return { verdict: 'Unverifiable', rationale: 'Malformed JSON from model', citations: [] };
+      return { verdict: 'Unverifiable', rationale: 'Malformed JSON from model', citations: [], confidence: 50 };
     }
 }
 

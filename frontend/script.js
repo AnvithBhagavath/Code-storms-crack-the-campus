@@ -20,6 +20,7 @@ function mapApiToUi(apiResult) {
     const descriptionFromApi = apiResult?.description || '';
     const imageFromApi = apiResult?.image || '';
     const imageInsight = apiResult?.imageInsight || '';
+    const sourceTitle = apiResult?.sourceTitle || '';
     const rationale = apiResult?.rationale || 'No rationale provided.';
     const citations = Array.isArray(apiResult?.citations) ? apiResult.citations : [];
 
@@ -28,7 +29,7 @@ function mapApiToUi(apiResult) {
     let description = descriptionFromApi || 'The content may be misleading. Please verify before sharing.';
     let icon = 'fas fa-exclamation-triangle';
     let color = 'text-warning-orange';
-    let confidence = 75;
+    let confidence = Number.isFinite(apiResult?.confidence) ? apiResult.confidence : 75;
 
     if (verdict.includes('true')) {
         isReal = true;
@@ -36,24 +37,25 @@ function mapApiToUi(apiResult) {
         description = descriptionFromApi || 'Our analysis indicates this content is likely genuine and from a credible source.';
         icon = 'fas fa-check-circle';
         color = 'text-success-green';
-        confidence = verdict.includes('mostly') ? 85 : 92;
+        confidence = Number.isFinite(apiResult?.confidence) ? apiResult.confidence : (verdict.includes('mostly') ? 85 : 92);
     } else if (verdict.includes('mixed') || verdict.includes('unverifiable')) {
         isReal = false;
         title = '⚠️ Inconclusive Evidence';
         description = descriptionFromApi || 'Evidence is mixed or insufficient. Treat with caution and verify with trusted sources.';
         icon = 'fas fa-exclamation-triangle';
         color = 'text-warning-orange';
-        confidence = 70;
+        confidence = Number.isFinite(apiResult?.confidence) ? apiResult.confidence : 70;
     } else if (verdict.includes('false')) {
         isReal = false;
         title = '❌ Fake Content Confirmed';
         description = descriptionFromApi || 'This content appears false or misleading. Do not share this information.';
         icon = 'fas fa-times-circle';
         color = 'text-danger-red';
-        confidence = verdict.includes('mostly') ? 60 : 40;
+        confidence = Number.isFinite(apiResult?.confidence) ? apiResult.confidence : (verdict.includes('mostly') ? 60 : 40);
     }
 
     const analysis = [
+        ...(sourceTitle ? [`Source title: ${sourceTitle}`] : []),
         `Model verdict: ${apiResult?.verdict || 'Unknown'}`,
         `Rationale: ${rationale}`,
         ...(imageInsight ? [`Image analysis: ${imageInsight}`] : []),
