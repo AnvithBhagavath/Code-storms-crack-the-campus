@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fact Checker - Social Media Link Detector</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'dark-blue': '#0f172a',
+                        'darker-blue': '#020617',
+                        'accent-blue': '#3b82f6',
+                        'light-blue': '#1e40af',
+                        'success-green': '#10b981',
+                        'danger-red': '#ef4444',
+                        'warning-orange': '#f59e0b'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-darker-blue min-h-screen">
+    <!-- Navigation Header -->
+    <nav class="bg-dark-blue shadow-2xl border-b border-accent-blue/20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-gradient-to-r from-accent-blue to-light-blue rounded-lg flex items-center justify-center">
+                        <i class="fas fa-shield-check text-white text-xl"></i>
+                    </div>
+                    <h1 class="text-2xl font-bold text-white">Fact Checker</h1>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="#" class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors">Home</a>
+                        <a href="#" class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors">About</a>
+                        <a href="#" class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors">Contact</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <!-- Hero Section -->
+        <div class="text-center mb-12">
+            <h2 class="text-4xl md:text-6xl font-bold text-white mb-6">
+                Detect <span class="text-transparent bg-clip-text bg-gradient-to-r from-accent-blue to-light-blue">Fake News</span>
+            </h2>
+            <p class="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
+                Paste any social media link and get instant fact-checking results powered by AI technology
+            </p>
+        </div>
+
+        <!-- Link Input Section -->
+        <div class="bg-dark-blue/50 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-accent-blue/20 mb-8">
+            <div class="max-w-2xl mx-auto">
+                <div class="mb-6">
+                    <label for="social-link" class="block text-lg font-semibold text-white mb-3">
+                        <i class="fas fa-link mr-2 text-accent-blue"></i>
+                        Social Media Link
+                    </label>
+                    <div class="relative">
+                        <input 
+                            type="url" 
+                            id="social-link" 
+                            placeholder="Paste your Twitter, Instagram, or Facebook link here..."
+                            class="w-full px-4 py-4 pr-12 bg-darker-blue border-2 border-accent-blue/30 rounded-xl text-white placeholder-gray-400 focus:border-accent-blue focus:outline-none transition-all duration-300 text-lg"
+                        >
+                        <button 
+                            id="paste-btn"
+                            class="absolute right-3 top-1/2 transform -translate-y-1/2 text-accent-blue hover:text-white transition-colors"
+                            title="Paste from clipboard"
+                        >
+                            <i class="fas fa-paste text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Platform Selection -->
+                <div class="mb-6">
+                    <label class="block text-lg font-semibold text-white mb-3">
+                        <i class="fas fa-globe mr-2 text-accent-blue"></i>
+                        Select Platform
+                    </label>
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                        <button class="platform-btn active" data-platform="twitter">
+                            <i class="fab fa-twitter text-blue-400"></i>
+                            <span>Twitter</span>
+                        </button>
+                        <button class="platform-btn" data-platform="instagram">
+                            <i class="fab fa-instagram text-pink-500"></i>
+                            <span>Instagram</span>
+                        </button>
+                        <button class="platform-btn" data-platform="facebook">
+                            <i class="fab fa-facebook text-blue-600"></i>
+                            <span>Facebook</span>
+                        </button>
+                        <button class="platform-btn" data-platform="youtube">
+                            <i class="fab fa-youtube text-red-500"></i>
+                            <span>YouTube</span>
+                        </button>
+                        <button class="platform-btn" data-platform="tiktok">
+                            <i class="fab fa-tiktok text-black dark:text-white"></i>
+                            <span>TikTok</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Fact Check Button -->
+                <div class="text-center">
+                    <button 
+                        id="fact-check-btn"
+                        class="bg-gradient-to-r from-accent-blue to-light-blue hover:from-light-blue hover:to-accent-blue text-white font-bold py-4 px-8 rounded-xl text-lg transition-all duration-300 transform hover:scale-105 hover:shadow-2xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                    >
+                        <i class="fas fa-search mr-2"></i>
+                        <span id="btn-text">Check Fact</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Section -->
+        <div id="loading-section" class="hidden bg-dark-blue/50 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-accent-blue/20 mb-8">
+            <div class="text-center">
+                <div class="inline-block animate-spin rounded-full h-16 w-16 border-b-2 border-accent-blue mb-4"></div>
+                <h3 class="text-2xl font-bold text-white mb-2">Analyzing Content...</h3>
+                <p class="text-gray-300">Please wait while we verify the authenticity of this content</p>
+                <div class="mt-6 bg-darker-blue rounded-lg p-4">
+                    <div class="flex items-center justify-between text-sm text-gray-400 mb-2">
+                        <span>Checking source credibility</span>
+                        <span id="progress-1">✓</span>
+                    </div>
+                    <div class="flex items-center justify-between text-sm text-gray-400 mb-2">
+                        <span>Analyzing content patterns</span>
+                        <span id="progress-2">⏳</span>
+                    </div>
+                    <div class="flex items-center justify-between text-sm text-gray-400">
+                        <span>Cross-referencing with databases</span>
+                        <span id="progress-3">⏳</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results-section" class="hidden">
+            <div class="bg-dark-blue/50 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-accent-blue/20">
+                <div class="text-center">
+                    <div id="result-icon" class="text-6xl mb-4"></div>
+                    <h3 id="result-title" class="text-3xl font-bold mb-4"></h3>
+                    <p id="result-description" class="text-gray-300 mb-6"></p>
+                    
+                    <!-- Confidence Meter -->
+                    <div class="mb-6">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-white font-semibold">Confidence Level</span>
+                            <span id="confidence-percentage" class="text-accent-blue font-bold"></span>
+                        </div>
+                        <div class="w-full bg-darker-blue rounded-full h-3">
+                            <div id="confidence-bar" class="h-3 rounded-full transition-all duration-1000"></div>
+                        </div>
+                    </div>
+
+                    <!-- Additional Info -->
+                    <div class="grid md:grid-cols-2 gap-6 mt-8">
+                        <div class="bg-darker-blue rounded-lg p-4">
+                            <h4 class="text-white font-semibold mb-2">
+                                <i class="fas fa-info-circle mr-2 text-accent-blue"></i>
+                                Analysis Details
+                            </h4>
+                            <ul id="analysis-details" class="text-gray-300 text-sm space-y-1"></ul>
+                        </div>
+                        <div class="bg-darker-blue rounded-lg p-4">
+                            <h4 class="text-white font-semibold mb-2">
+                                <i class="fas fa-shield-alt mr-2 text-accent-blue"></i>
+                                Safety Tips
+                            </h4>
+                            <ul id="safety-tips" class="text-gray-300 text-sm space-y-1"></ul>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex flex-col sm:flex-row gap-4 mt-8 justify-center">
+                        <button id="check-another-btn" class="bg-accent-blue hover:bg-light-blue text-white font-semibold py-3 px-6 rounded-lg transition-colors">
+                            <i class="fas fa-plus mr-2"></i>
+                            Check Another Link
+                        </button>
+                        <button id="share-result-btn" class="bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors">
+                            <i class="fas fa-share mr-2"></i>
+                            Share Result
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Features Section -->
+        <div class="mt-16 grid md:grid-cols-3 gap-8">
+            <div class="text-center">
+                <div class="w-16 h-16 bg-gradient-to-r from-accent-blue to-light-blue rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-bolt text-white text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-white mb-2">Lightning Fast</h3>
+                <p class="text-gray-300">Get instant results with our advanced AI-powered detection system</p>
+            </div>
+            <div class="text-center">
+                <div class="w-16 h-16 bg-gradient-to-r from-accent-blue to-light-blue rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-shield-check text-white text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-white mb-2">Highly Accurate</h3>
+                <p class="text-gray-300">Our algorithms achieve 95%+ accuracy in detecting fake content</p>
+            </div>
+            <div class="text-center">
+                <div class="w-16 h-16 bg-gradient-to-r from-accent-blue to-light-blue rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-lock text-white text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-white mb-2">Privacy First</h3>
+                <p class="text-gray-300">Your data is secure and never stored on our servers</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-dark-blue border-t border-accent-blue/20 mt-16">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div class="text-center text-gray-300">
+                <p>&copy; 2024 Fact Checker. Built with ❤️ for truth and accuracy.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
