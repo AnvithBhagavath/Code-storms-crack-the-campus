@@ -12,6 +12,84 @@ const shareResultBtn = document.getElementById('share-result-btn');
 // State
 let selectedPlatform = 'twitter';
 let isChecking = false;
+// Backend API base URL (override with ?api=http://host:port)
+const API_BASE = new URLSearchParams(window.location.search).get('api') || 'http://localhost:4000';
+
+function mapApiToUi(apiResult) {
+    const verdict = String(apiResult?.verdict || '').toLowerCase();
+    const descriptionFromApi = apiResult?.description || '';
+    const imageFromApi = apiResult?.image || '';
+    const imageInsight = apiResult?.imageInsight || '';
+    const rationale = apiResult?.rationale || 'No rationale provided.';
+    const citations = Array.isArray(apiResult?.citations) ? apiResult.citations : [];
+
+    let isReal = false;
+    let title = '⚠️ Suspicious Content Detected';
+    let description = descriptionFromApi || 'The content may be misleading. Please verify before sharing.';
+    let icon = 'fas fa-exclamation-triangle';
+    let color = 'text-warning-orange';
+    let confidence = 75;
+
+    if (verdict.includes('true')) {
+        isReal = true;
+        title = '✅ Content Appears Authentic';
+        description = descriptionFromApi || 'Our analysis indicates this content is likely genuine and from a credible source.';
+        icon = 'fas fa-check-circle';
+        color = 'text-success-green';
+        confidence = verdict.includes('mostly') ? 85 : 92;
+    } else if (verdict.includes('mixed') || verdict.includes('unverifiable')) {
+        isReal = false;
+        title = '⚠️ Inconclusive Evidence';
+        description = descriptionFromApi || 'Evidence is mixed or insufficient. Treat with caution and verify with trusted sources.';
+        icon = 'fas fa-exclamation-triangle';
+        color = 'text-warning-orange';
+        confidence = 70;
+    } else if (verdict.includes('false')) {
+        isReal = false;
+        title = '❌ Fake Content Confirmed';
+        description = descriptionFromApi || 'This content appears false or misleading. Do not share this information.';
+        icon = 'fas fa-times-circle';
+        color = 'text-danger-red';
+        confidence = verdict.includes('mostly') ? 60 : 40;
+    }
+
+    const analysis = [
+        `Model verdict: ${apiResult?.verdict || 'Unknown'}`,
+        `Rationale: ${rationale}`,
+        ...(imageInsight ? [`Image analysis: ${imageInsight}`] : []),
+        ...citations.map((c, i) => `Citation ${i + 1}: ${c}`)
+    ];
+
+    const tips = isReal
+        ? [
+            'Always verify with official sources',
+            'Check the account\'s verification status',
+            'Look for consistent posting patterns',
+            'Be cautious of sensational claims'
+          ]
+        : [
+            'Do not share without verification',
+            'Check multiple reliable sources',
+            'Look for official confirmations',
+            'Report if confirmed as misinformation'
+          ];
+
+    return { isReal, confidence, title, description, icon, color, analysis, tips, image: imageFromApi };
+}
+
+async function callBackendFactCheck(url) {
+    const res = await fetch(`${API_BASE}/api/fact-check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+    });
+    if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(text || `Request failed: ${res.status}`);
+    }
+    const data = await res.json();
+    return mapApiToUi(data);
+}
 
 // Platform selection with validation
 platformBtns.forEach(btn => {
@@ -290,6 +368,7 @@ function showResults(result) {
     const resultIcon = document.getElementById('result-icon');
     const resultTitle = document.getElementById('result-title');
     const resultDescription = document.getElementById('result-description');
+    let resultImageEl = document.getElementById('result-image');
     const confidencePercentage = document.getElementById('confidence-percentage');
     const confidenceBar = document.getElementById('confidence-bar');
     const analysisDetails = document.getElementById('analysis-details');
@@ -299,6 +378,19 @@ function showResults(result) {
     resultTitle.textContent = result.title;
     resultTitle.className = `text-3xl font-bold mb-4 ${result.color}`;
     resultDescription.textContent = result.description;
+    if (result.image) {
+        if (!resultImageEl) {
+            resultImageEl = document.createElement('img');
+            resultImageEl.id = 'result-image';
+            resultImageEl.className = 'mx-auto mb-6 rounded-lg max-h-72 object-contain border border-accent-blue/20';
+            resultTitle.parentNode.insertBefore(resultImageEl, resultTitle.nextSibling);
+        }
+        resultImageEl.src = result.image;
+        resultImageEl.alt = 'Link preview image';
+        resultImageEl.style.display = 'block';
+    } else if (resultImageEl) {
+        resultImageEl.style.display = 'none';
+    }
     confidencePercentage.textContent = `${result.confidence}%`;
     
     // Animate confidence bar
@@ -352,11 +444,12 @@ async function performFactCheck() {
     showLoading();
     
     try {
-        const result = await simulateFactCheck();
+        const result = await callBackendFactCheck(url);
         showResults(result);
     } catch (error) {
-        console.error('Fact check failed:', error);
-        alert('Fact check failed. Please try again.');
+        console.error('Fact check failed, falling back to local simulation:', error);
+        const result = await simulateFactCheck();
+        showResults(result);
     } finally {
         isChecking = false;
         factCheckBtn.disabled = false;

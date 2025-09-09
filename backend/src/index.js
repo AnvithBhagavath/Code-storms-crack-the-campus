@@ -15,6 +15,11 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Avoid noisy 404s from browsers requesting a favicon
+app.get('/favicon.ico', (_req, res) => {
+  res.status(204).end();
+});
+
 app.use('/api', factCheckRouter);
 
 app.listen(port, () => {

@@ -1,5 +1,6 @@
 import { fetchReadableTextFromUrl } from '../utils/scrape.js';
-import { generateFactCheck } from '../utils/openai.js';
+import { generateFactCheck, analyzeImageEvidence } from '../utils/openai.js';
+import { fetchCorroboratingEvidence } from '../utils/corroborate.js';
 
 export async function factCheck({ text, url }) {
   if (!text && !url) {
@@ -8,21 +9,53 @@ export async function factCheck({ text, url }) {
 
   let sourceText = '';
   let citations = [];
+  let description = '';
+  let image = '';
+  let imageInsight = '';
 
   if (url) {
     try {
-      const { title, text: extracted } = await fetchReadableTextFromUrl(url);
+      const { title, text: extracted, description: metaDesc, image: metaImage } = await fetchReadableTextFromUrl(url);
       sourceText = `${title}\n\n${extracted}`.trim();
       citations.push(url);
+      description = metaDesc || '';
+      image = metaImage || '';
     } catch (err) {
       sourceText = '';
     }
   }
 
-  const claimText = text || `Facts inferred from: ${url}`;
-  const result = await generateFactCheck({ claimText, sourceText });
+  let claimText = text;
+  if (!claimText) {
+    // Try to infer a concise claim from the source text
+    const preview = sourceText.split(/\n+/).filter(Boolean).slice(0, 6).join(' ').slice(0, 600);
+    claimText = preview || `Content from ${url}`;
+  }
+  // Prefer description as the user-facing claim if present
+  const claimForModel = description || claimText;
+  // If we have an image but little/no text, analyze the image to extract cues
+  if (image && (!sourceText || sourceText.length < 200)) {
+    try {
+      const ai = await analyzeImageEvidence({ imageUrl: image, claimText: description || claimText });
+      imageInsight = ai.imageInsight || '';
+    } catch {}
+  }
 
-  return { ...result, citations: Array.from(new Set([...(result.citations || []), ...citations])) };
+  let result = await generateFactCheck({ claimText: claimForModel, sourceText, extraEvidenceText: imageInsight });
+
+  const verdictLower = String(result?.verdict || '').toLowerCase();
+  if (verdictLower.includes('mixed') || verdictLower.includes('unverifiable')) {
+    const evidence = await fetchCorroboratingEvidence(claimForModel);
+    if (evidence.text) {
+      const rerun = await generateFactCheck({ claimText: claimForModel, sourceText, extraEvidenceText: evidence.text });
+      result = {
+        ...rerun,
+        citations: Array.from(new Set([...(rerun.citations || []), ...evidence.citations]))
+      };
+    }
+  }
+
+  return { description, image, imageInsight, ...result, citations: Array.from(new Set([...(result.citations || []), ...citations])) };
 }
 
 
